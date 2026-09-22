@@ -12,20 +12,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      localstack:
-        image: localstack/localstack:3.8
-        ports:
-          - 4566:4566
-        env:
-          SERVICES: s3
-          AWS_DEFAULT_REGION: us-east-1
-        options: >-
-          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,13 +21,34 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Start LocalStack
+        run: |
+          docker run -d \
+            --name localstack \
+            -p 4566:4566 \
+            -e SERVICES=s3 \
+            -e AWS_DEFAULT_REGION=us-east-1 \
+            localstack/localstack:3.8
+
+      - name: Wait for LocalStack
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:4566/_localstack/health > /dev/null; then
+              echo "LocalStack is ready"
+              break
+            fi
+            echo "Waiting for LocalStack..."
+            sleep 2
+          done
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
       - name: Create test bucket
         run: |
           pip install awscli
-          aws --endpoint-url=http://localhost:4566 s3 mb s3://devops-project-terraform
+          aws --endpoint-url=http://localhost:4566 \
+            s3 mb s3://devops-project-terraform
 
       - name: Run tests
         run: python -m pytest
