@@ -12,6 +12,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      localstack:
+        image: localstack/localstack:3.8
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3
+          AWS_DEFAULT_REGION: us-east-1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,6 +37,11 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Create test bucket
+        run: |
+          pip install awscli
+          aws --endpoint-url=http://localhost:4566 s3 mb s3://devops-project-terraform
 
       - name: Run tests
         run: python -m pytest
